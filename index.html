@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Překlad kódu letenky</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f5;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 340px;
+        }
+
+        h2 {
+            margin-bottom: 20px;
+            font-size: 24px;
+            color: #007bff;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+            margin: 5px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .copy-button {
+            background-color: #28a745;
+        }
+
+        .copy-button:hover {
+            background-color: #218838;
+        }
+
+        p#output {
+            margin-top: 20px;
+            font-size: 18px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Překlad kódu letenky</h2>
+    <input type="text" id="ticketCode" placeholder="Zadejte kód letenky">
+    <button onclick="translateTicketCode()">Přeložit</button>
+    <button id="copyButton" class="copy-button" onclick="copyToClipboard()" style="display: none;">Kopírovat</button>
+
+    <p id="output"></p>
+</div>
+
+<script>
+    async function fetchJSON(file) {
+        const response = await fetch(file);
+        return await response.json();
+    }
+
+    async function translateTicketCode() {
+        const airlines = await fetchJSON('airlines.json');
+        const airports = await fetchJSON('airports.json');
+
+        let code = document.getElementById('ticketCode').value.trim();
+        code = code.replace(/\s+/g, ''); // Odstranění všech mezer
+
+        const airlineCode = code.slice(0, 2);  // První 2 znaky - kód aerolinky
+        let remainingCode = code.slice(2);
+
+        // Číslo letu může být variabilní (4 až 5 znaků), proto najdeme první třídu po čísle letu
+        let flightNumberEndIndex = remainingCode.search(/[A-Z]/);
+        const flightNumber = remainingCode.slice(0, flightNumberEndIndex);
+        remainingCode = remainingCode.slice(flightNumberEndIndex);
+
+        const flightClass = remainingCode.slice(0, 1);  // Třída letu
+        const flightDate = remainingCode.slice(1, 6);  // 5 znaků - datum letu
+        remainingCode = remainingCode.slice(6);
+
+        const origin = remainingCode.slice(0, 3);  // 3 znaky - letiště odletu
+        const destination = remainingCode.slice(3, 6); // 3 znaky - letiště příletu
+        remainingCode = remainingCode.slice(6);
+
+        // Nalezení časů v řetězci
+        const departureTime = remainingCode.slice(3, 7).replace(/(\d{2})(\d{2})/, '$1:$2');
+        const arrivalTime = remainingCode.slice(7, 11).replace(/(\d{2})(\d{2})/, '$1:$2');
+
+        const airlineName = airlines[airlineCode] || airlineCode;
+        const originName = airports[origin] || origin;
+        const destinationName = airports[destination] || destination;
+
+        const output = `${airlineName} ${airlineCode} ${flightNumber} - ${flightDate} ${originName} - ${destinationName} ${departureTime}-${arrivalTime}`;
+        document.getElementById('output').innerText = output;
+
+        // Zobrazit tlačítko "Kopírovat"
+        document.getElementById('copyButton').style.display = 'inline-block';
+    }
+
+    function copyToClipboard() {
+        const outputText = document.getElementById('output').innerText;
+        navigator.clipboard.writeText(outputText).then(() => {
+            alert('Text zkopírován do schránky!');
+        }).catch(err => {
+            console.error('Něco se pokazilo při kopírování textu do schránky', err);
+        });
+    }
+</script>
+
+</body>
+</html>
