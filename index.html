@@ -31,7 +31,7 @@
             color: #007bff;
         }
 
-        input[type="text"] {
+        textarea {
             width: 100%;
             box-sizing: border-box;
             padding: 10px;
@@ -39,6 +39,7 @@
             border: 1px solid #ccc;
             border-radius: 4px;
             font-size: 16px;
+            height: 150px;
         }
 
         button {
@@ -53,7 +54,7 @@
             margin: 5px;
         }
 
-        button:hover {
+        button:hover:not(.active) {
             background-color: #0056b3;
         }
 
@@ -65,10 +66,16 @@
             background-color: #218838;
         }
 
+        .active {
+            background-color: #0056b3;
+            cursor: not-allowed;
+        }
+
         p#output {
             margin-top: 20px;
             font-size: 18px;
             color: #333;
+            white-space: pre-wrap; /* Maintain line breaks */
         }
     </style>
 </head>
@@ -76,55 +83,130 @@
 
 <div class="container">
     <h2>Překlad kódu letenky</h2>
-    <input type="text" id="ticketCode" placeholder="Zadejte kód letenky">
-    <button onclick="translateTicketCode()">Přeložit</button>
+    <textarea id="ticketCodes" placeholder="Zadejte kódy letenek (max. 6) oddělené novým řádkem"></textarea>
+    <button id="jsonButton" onclick="setDataSource('json')">Použít JSON</button>
+    <button id="apiButton" onclick="setDataSource('api')">Použít API</button>
+    <button onclick="translateTicketCodes()">Přeložit</button>
     <button id="copyButton" class="copy-button" onclick="copyToClipboard()" style="display: none;">Kopírovat</button>
 
     <p id="output"></p>
 </div>
 
 <script>
+    let dataSource = 'json'; // Defaultní zdroj dat
+
+    function setDataSource(source) {
+        dataSource = source;
+
+        // Resetování stavu tlačítek
+        document.getElementById('jsonButton').classList.remove('active');
+        document.getElementById('jsonButton').disabled = false;
+        document.getElementById('apiButton').classList.remove('active');
+        document.getElementById('apiButton').disabled = false;
+
+        // Nastavení aktivního tlačítka
+        if (source === 'json') {
+            document.getElementById('jsonButton').classList.add('active');
+            document.getElementById('jsonButton').disabled = true;
+        } else if (source === 'api') {
+            document.getElementById('apiButton').classList.add('active');
+            document.getElementById('apiButton').disabled = true;
+        }
+
+        alert(`Zdroje dat přepnut na: ${source === 'json' ? 'JSON soubor' : 'API'}`);
+    }
+
     async function fetchJSON(file) {
         const response = await fetch(file);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
         return await response.json();
     }
 
-    async function translateTicketCode() {
-        const airlines = await fetchJSON('airlines.json');
-        const airports = await fetchJSON('airports.json');
+    async function fetchFromAPI(apiEndpoint) {
+        const apiKey = '523533ba-8629-4f60-af72-235362c4333f'; // Zde nahraďte vaším API klíčem
+        const response = await fetch(`${apiEndpoint}?api_key=${apiKey}&lang=cs`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        return data.response; // Extrahujeme pole s odpovědí
+    }
 
-        let code = document.getElementById('ticketCode').value.trim();
-        code = code.replace(/\s+/g, ''); // Odstranění všech mezer
+    function processJSONData(airlines, airports) {
+        // Vracíme mapy pro rychlé vyhledávání IATA kódů
+        return {
+            airlinesMap: airlines,
+            airportsMap: airports
+        };
+    }
 
-        const airlineCode = code.slice(0, 2);  // První 2 znaky - kód aerolinky
-        let remainingCode = code.slice(2);
+    function processAPIData(airlines, airports) {
+        const airlinesMap = {};
+        airlines.forEach(airline => {
+            airlinesMap[airline.iata_code] = airline.name;
+        });
 
-        // Číslo letu může být variabilní (4 až 5 znaků), proto najdeme první třídu po čísle letu
-        let flightNumberEndIndex = remainingCode.search(/[A-Z]/);
-        const flightNumber = remainingCode.slice(0, flightNumberEndIndex);
-        remainingCode = remainingCode.slice(flightNumberEndIndex);
+        const airportsMap = {};
+        airports.forEach(airport => {
+            airportsMap[airport.iata_code] = airport.name;
+        });
 
-        const flightClass = remainingCode.slice(0, 1);  // Třída letu
-        const flightDate = remainingCode.slice(1, 6);  // 5 znaků - datum letu
-        remainingCode = remainingCode.slice(6);
+        return {
+            airlinesMap,
+            airportsMap
+        };
+    }
 
-        const origin = remainingCode.slice(0, 3);  // 3 znaky - letiště odletu
-        const destination = remainingCode.slice(3, 6); // 3 znaky - letiště příletu
-        remainingCode = remainingCode.slice(6);
+    async function translateTicketCodes() {
+        let airlines, airports, processedData;
 
-        // Nalezení časů v řetězci
-        const departureTime = remainingCode.slice(3, 7).replace(/(\d{2})(\d{2})/, '$1:$2');
-        const arrivalTime = remainingCode.slice(7, 11).replace(/(\d{2})(\d{2})/, '$1:$2');
+        try {
+            if (dataSource === 'json') {
+                airlines = await fetchJSON('airlines.json');
+                airports = await fetchJSON('airports.json');
+                processedData = processJSONData(airlines, airports);
+            } else if (dataSource === 'api') {
+                airlines = await fetchFromAPI('https://airlabs.co/api/v9/airlines');
+                airports = await fetchFromAPI('https://airlabs.co/api/v9/airports');
+                processedData = processAPIData(airlines, airports);
+            }
 
-        const airlineName = airlines[airlineCode] || airlineCode;
-        const originName = airports[origin] || origin;
-        const destinationName = airports[destination] || destination;
+            const { airlinesMap, airportsMap } = processedData;
 
-        const output = `${airlineName} ${airlineCode} ${flightNumber} - ${flightDate} ${originName} - ${destinationName} ${departureTime}-${arrivalTime}`;
-        document.getElementById('output').innerText = output;
+            let codes = document.getElementById('ticketCodes').value.trim().split('\n'); // Split the input into lines
+            let output = "";
 
-        // Zobrazit tlačítko "Kopírovat"
-        document.getElementById('copyButton').style.display = 'inline-block';
+            codes = codes.filter(code => code.trim() !== ''); // Remove empty lines
+
+            codes.forEach((code, index) => {
+                const codeParts = code.split(/\s+/); // Split the input into parts by spaces
+
+                const airlineCode = codeParts[1]; // Second part is the airline code
+                const flightNumber = codeParts[2]; // Third part is the flight number
+                const flightDate = codeParts[4]; // Fifth part is the date
+                const origin = codeParts[5]; // Sixth part is the origin
+                const destination = codeParts[6]; // Seventh part is the destination
+                const departureTime = codeParts[7].replace(/(\d{2})(\d{2})/, '$1:$2'); // Eighth part is the departure time
+                let arrivalTime = codeParts[8].replace(/#/g, '').replace(/(\d{2})(\d{2})/, '$1:$2'); // Ninth part is the arrival time, removing any `#` symbol
+
+                const airlineName = airlinesMap[airlineCode] || airlineCode;
+                const originName = airportsMap[origin] || origin;
+                const destinationName = airportsMap[destination] || destination;
+
+                // Format the translated ticket code with numbering and spacing
+                output += `${index + 1}. ${airlineName} ${airlineCode} ${flightNumber} - ${flightDate} ${originName} - ${destinationName} ${departureTime}-${arrivalTime}\n\n`;
+            });
+
+            document.getElementById('output').innerText = output;
+
+            // Show the "Copy" button
+            document.getElementById('copyButton').style.display = 'inline-block';
+        } catch (error) {
+            console.error('Error translating the ticket code:', error);
+            alert('An error occurred while translating the ticket codes. Check the console for more information.');
+        }
     }
 
     function copyToClipboard() {
@@ -135,6 +217,12 @@
             console.error('Něco se pokazilo při kopírování textu do schránky', err);
         });
     }
+
+    // Nastavit výchozí aktivní tlačítko při načtení
+    document.addEventListener("DOMContentLoaded", function() {
+        setDataSource('json');
+    });
+
 </script>
 
 </body>
