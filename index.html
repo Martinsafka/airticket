@@ -181,15 +181,25 @@
             codes = codes.filter(code => code.trim() !== ''); // Remove empty lines
 
             codes.forEach((code, index) => {
-                const codeParts = code.split(/\s+/); // Split the input into parts by spaces
+                // Remove everything before the first letter (usually the airline code)
+                const cleanedCode = code.replace(/^[^A-Za-z]+/, '');
 
-                const airlineCode = codeParts[1]; // Second part is the airline code
-                const flightNumber = codeParts[2]; // Third part is the flight number
-                const flightDate = codeParts[4]; // Fifth part is the date
-                const origin = codeParts[5]; // Sixth part is the origin
-                const destination = codeParts[6]; // Seventh part is the destination
-                const departureTime = codeParts[7].replace(/(\d{2})(\d{2})/, '$1:$2'); // Eighth part is the departure time
-                let arrivalTime = codeParts[8].replace(/#/g, '').replace(/(\d{2})(\d{2})/, '$1:$2'); // Ninth part is the arrival time, removing any `#` symbol
+                const codeParts = cleanedCode.split(/\s+/); // Split the cleaned input into parts by spaces
+
+                const airlineCode = codeParts[0]; // First part is the airline code (after cleanup)
+                const flightNumber = codeParts[1]; // Second part is the flight number
+                const flightDate = codeParts[3]; // Fourth part is the date
+                let origin = codeParts[4]; // Fifth part is the origin and destination (joined in some cases)
+                let destination = codeParts[5]; // Destination could be joined with origin
+
+                // Check if origin and destination are joined together (6-letter string like "PRGDXB")
+                if (origin.length === 6) {
+                    destination = origin.slice(3); // Extract last 3 characters as destination
+                    origin = origin.slice(0, 3); // First 3 characters as origin
+                }
+
+                const departureTime = codeParts[6].replace(/(\d{2})(\d{2})/, '$1:$2'); // Departure time
+                let arrivalTime = codeParts[7].replace(/#/g, '').replace(/(\d{2})(\d{2})/, '$1:$2'); // Arrival time, removing any `#` symbol
 
                 const airlineName = airlinesMap[airlineCode] || airlineCode;
                 const originName = airportsMap[origin] || origin;
