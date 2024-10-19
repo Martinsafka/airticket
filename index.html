@@ -113,7 +113,7 @@
             document.getElementById('apiButton').disabled = true;
         }
 
-        alert(`Zdroje dat přepnut na: ${source === 'json' ? 'JSON soubor' : 'API'}`);
+        //alert(`Zdroje dat přepnut na: ${source === 'json' ? 'JSON soubor' : 'API'}`);
     }
 
     async function fetchJSON(file) {
@@ -134,6 +134,36 @@
         return data.response; // Extrahujeme pole s odpovědí
     }
 
+    async function fetchCityNameFromMapbox(lat, lng) {
+        const apiKey = 'pk.eyJ1IjoiY2hlZmZyZWVsYW5jZXIiLCJhIjoicWZjUm5wWSJ9.qg3R2jz0iRgBgBrbpf4FeQ';
+        const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${apiKey}`);
+        const data = await response.json();
+
+        console.log("test mapbox", data);
+
+        // Ensure that the third object exists in the 'features' array
+        if (data.features.length >= 4) {
+            const city = data.features[3]; // Get the third object in the 'features' array
+            return city.place_name ? city.place_name : 'Neznámé město';
+        } else {
+            throw new Error('Nebylo možné získat data pro město.');
+        }
+    }
+
+    async function fetchCityFromText(query) {
+        const apiKey = 'pk.eyJ1IjoiY2hlZmZyZWVsYW5jZXIiLCJhIjoicWZjUm5wWSJ9.qg3R2jz0iRgBgBrbpf4FeQ';
+        const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${apiKey}`);
+        const data = await response.json();
+
+        if (data.features.length > 0) {
+            // Hledáme nejrelevantnější město v odpovědi
+            const feature = data.features[0]; // První relevantní výsledek
+            return feature.place_name; // Vrátí název místa
+        } else {
+            throw new Error('Nebylo možné najít relevantní město.');
+        }
+    }
+
     function processJSONData(airlines, airports) {
         // Vracíme mapy pro rychlé vyhledávání IATA kódů
         return {
@@ -150,7 +180,11 @@
 
         const airportsMap = {};
         airports.forEach(airport => {
-            airportsMap[airport.iata_code] = airport.name;
+            airportsMap[airport.iata_code] = {
+                name: airport.name,
+                lat: airport.lat,
+                lng: airport.lng
+            };
         });
 
         return {
@@ -175,43 +209,53 @@
 
             const { airlinesMap, airportsMap } = processedData;
 
-            let codes = document.getElementById('ticketCodes').value.trim().split('\n'); // Split the input into lines
+            let codes = document.getElementById('ticketCodes').value.trim().split('\n');
             let output = "";
 
             codes = codes.filter(code => code.trim() !== ''); // Remove empty lines
 
-            codes.forEach((code, index) => {
-                // Remove everything before the first letter (usually the airline code)
+            for (let code of codes) {
                 const cleanedCode = code.replace(/^[^A-Za-z]+/, '');
+                const codeParts = cleanedCode.split(/\s+/);
 
-                const codeParts = cleanedCode.split(/\s+/); // Split the cleaned input into parts by spaces
+                const airlineCode = codeParts[0];
+                const flightNumber = codeParts[1];
+                const flightDate = codeParts[3];
+                let origin = codeParts[4];
+                let destination = codeParts[5];
 
-                const airlineCode = codeParts[0]; // First part is the airline code (after cleanup)
-                const flightNumber = codeParts[1]; // Second part is the flight number
-                const flightDate = codeParts[3]; // Fourth part is the date
-                let origin = codeParts[4]; // Fifth part is the origin and destination (joined in some cases)
-                let destination = codeParts[5]; // Destination could be joined with origin
-
-                // Check if origin and destination are joined together (6-letter string like "PRGDXB")
                 if (origin.length === 6) {
-                    destination = origin.slice(3); // Extract last 3 characters as destination
-                    origin = origin.slice(0, 3); // First 3 characters as origin
+                    destination = origin.slice(3);
+                    origin = origin.slice(0, 3);
                 }
 
-                const departureTime = codeParts[6].replace(/(\d{2})(\d{2})/, '$1:$2'); // Departure time
-                let arrivalTime = codeParts[7].replace(/#/g, '').replace(/(\d{2})(\d{2})/, '$1:$2'); // Arrival time, removing any `#` symbol
+                const departureTime = codeParts[6].replace(/(\d{2})(\d{2})/, '$1:$2');
+                let arrivalTime = codeParts[7].replace(/#/g, '').replace(/(\d{2})(\d{2})/, '$1:$2');
 
                 const airlineName = airlinesMap[airlineCode] || airlineCode;
-                const originName = airportsMap[origin] || origin;
-                const destinationName = airportsMap[destination] || destination;
 
-                // Format the translated ticket code with numbering and spacing
-                output += `${index + 1}. ${airlineName} ${airlineCode} ${flightNumber} - ${flightDate} ${originName} - ${destinationName} ${departureTime}-${arrivalTime}\n\n`;
-            });
+                let originName = airportsMap[origin]?.name || origin;
+                let destinationName = airportsMap[destination]?.name || destination;
+
+                console.log(airportsMap[destination]?.name);
+
+                // Fetch city name from Mapbox if lat/lng are available for the airport
+                if (airportsMap[origin] && airportsMap[origin].lat && airportsMap[origin].lng) {
+                    const lat = airportsMap[origin].lat;
+                    const lng = airportsMap[origin].lng;
+                    originName = await fetchCityNameFromMapbox(lat, lng);
+                }
+
+                if (airportsMap[destination] && airportsMap[destination].lat && airportsMap[destination].lng) {
+                    const lat = airportsMap[destination].lat;
+                    const lng = airportsMap[destination].lng;
+                    destinationName = await fetchCityNameFromMapbox(lat, lng);
+                }
+
+                output += `${airlineName} ${airlineCode} ${flightNumber} - ${flightDate} ${originName} - ${destinationName} ${departureTime}-${arrivalTime}\n\n`;
+            }
 
             document.getElementById('output').innerText = output;
-
-            // Show the "Copy" button
             document.getElementById('copyButton').style.display = 'inline-block';
         } catch (error) {
             console.error('Error translating the ticket code:', error);
