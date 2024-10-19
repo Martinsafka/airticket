@@ -234,10 +234,11 @@
 
                 const airlineName = airlinesMap[airlineCode] || airlineCode;
 
-                let originName = airportsMap[origin]?.name || origin;
-                let destinationName = airportsMap[destination]?.name || destination;
+                let originName;
+                let destinationName;
 
-                console.log(airportsMap[destination]?.name);
+                let originAirportName = airportsMap[origin]?.name || origin;
+                let destinationAirportName = airportsMap[destination]?.name || destination;
 
                 // Fetch city name from Mapbox if lat/lng are available for the airport
                 if (airportsMap[origin] && airportsMap[origin].lat && airportsMap[origin].lng) {
@@ -252,7 +253,7 @@
                     destinationName = await fetchCityNameFromMapbox(lat, lng);
                 }
 
-                output += `${airlineName} ${airlineCode} ${flightNumber} - ${flightDate} ${originName} - ${destinationName} ${departureTime} - ${arrivalTime}\n\n`;
+                output += `${airlineName} ${airlineCode} ${flightNumber} - ${flightDate} ${originName} (${originAirportName}) - ${destinationName} (${destinationAirportName}) ${departureTime} - ${arrivalTime}\n\n`;
             }
 
             document.getElementById('output').innerText = output;
