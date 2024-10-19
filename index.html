@@ -252,7 +252,7 @@
                     destinationName = await fetchCityNameFromMapbox(lat, lng);
                 }
 
-                output += `${airlineName} ${airlineCode} ${flightNumber} - ${flightDate} ${originName} - ${destinationName} ${departureTime}-${arrivalTime}\n\n`;
+                output += `${airlineName} ${airlineCode} ${flightNumber} - ${flightDate} ${originName} - ${destinationName} ${departureTime} - ${arrivalTime}\n\n`;
             }
 
             document.getElementById('output').innerText = output;
