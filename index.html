@@ -244,16 +244,16 @@
                 if (airportsMap[origin] && airportsMap[origin].lat && airportsMap[origin].lng) {
                     const lat = airportsMap[origin].lat;
                     const lng = airportsMap[origin].lng;
-                    originName = await fetchCityNameFromMapbox(lat, lng);
+                    originName = (await fetchCityNameFromMapbox(lat, lng)).split(',')[0];
                 }
 
                 if (airportsMap[destination] && airportsMap[destination].lat && airportsMap[destination].lng) {
                     const lat = airportsMap[destination].lat;
                     const lng = airportsMap[destination].lng;
-                    destinationName = await fetchCityNameFromMapbox(lat, lng);
+                    destinationName = (await fetchCityNameFromMapbox(lat, lng)).split(',')[0];
                 }
 
-                output += `${airlineName} ${airlineCode} ${flightNumber} - ${flightDate} ${originName} (${originAirportName}) - ${destinationName} (${destinationAirportName}) ${departureTime} - ${arrivalTime}\n\n`;
+                output += `${airlineName} ${airlineCode} ${flightNumber} - ${flightDate} ${originName} - ${destinationName} ${departureTime} - ${arrivalTime}\n\n`;
             }
 
             document.getElementById('output').innerText = output;
