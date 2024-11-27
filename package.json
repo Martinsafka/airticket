@@ -4,7 +4,8 @@
   "description": "",
   "main": "iata-scrapper.js",
   "scripts": {
-    "serve": "http-server-spa ./ index.html"
+    "serve": "http-server-spa ./ index.html",
+    "scrape": "node iata-scrapper.js"
   },
   "keywords": [],
   "author": "",

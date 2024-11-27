@@ -84,8 +84,6 @@
 <div class="container">
     <h2>Překlad kódu letenky</h2>
     <textarea id="ticketCodes" placeholder="Zadejte kódy letenek (max. 6) oddělené novým řádkem"></textarea>
-    <button id="jsonButton" onclick="setDataSource('json')">Použít JSON</button>
-    <button id="apiButton" onclick="setDataSource('api')">Použít API</button>
     <button onclick="translateTicketCodes()">Přeložit</button>
     <button id="copyButton" class="copy-button" onclick="copyToClipboard()" style="display: none;">Kopírovat</button>
 
@@ -93,28 +91,7 @@
 </div>
 
 <script>
-    let dataSource = 'json'; // Defaultní zdroj dat
-
-    function setDataSource(source) {
-        dataSource = source;
-
-        // Resetování stavu tlačítek
-        document.getElementById('jsonButton').classList.remove('active');
-        document.getElementById('jsonButton').disabled = false;
-        document.getElementById('apiButton').classList.remove('active');
-        document.getElementById('apiButton').disabled = false;
-
-        // Nastavení aktivního tlačítka
-        if (source === 'json') {
-            document.getElementById('jsonButton').classList.add('active');
-            document.getElementById('jsonButton').disabled = true;
-        } else if (source === 'api') {
-            document.getElementById('apiButton').classList.add('active');
-            document.getElementById('apiButton').disabled = true;
-        }
-
-        //alert(`Zdroje dat přepnut na: ${source === 'json' ? 'JSON soubor' : 'API'}`);
-    }
+    const dataSource = 'api'; // Defaultní zdroj dat
 
     async function fetchJSON(file) {
         const response = await fetch(file);
@@ -139,9 +116,6 @@
         const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${apiKey}`);
         const data = await response.json();
 
-        console.log("test mapbox", data);
-
-        console.log("test mapbox response", Array.isArray(data.features) && data.features.length > 0);
         // Ensure that the third object exists in the 'features' array
         if (Array.isArray(data.features) && data.features.length > 0) {
             const city = data.features.find(feature => feature.id.startsWith("place")); // Get the third object in the 'features' array
@@ -149,28 +123,6 @@
         } else {
             throw new Error('Nebylo možné získat data pro město.');
         }
-    }
-
-    async function fetchCityFromText(query) {
-        const apiKey = 'pk.eyJ1IjoiY2hlZmZyZWVsYW5jZXIiLCJhIjoicWZjUm5wWSJ9.qg3R2jz0iRgBgBrbpf4FeQ';
-        const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${apiKey}`);
-        const data = await response.json();
-
-        if (data.features.length > 0) {
-            // Hledáme nejrelevantnější město v odpovědi
-            const feature = data.features[0]; // První relevantní výsledek
-            return feature.place_name; // Vrátí název místa
-        } else {
-            throw new Error('Nebylo možné najít relevantní město.');
-        }
-    }
-
-    function processJSONData(airlines, airports) {
-        // Vracíme mapy pro rychlé vyhledávání IATA kódů
-        return {
-            airlinesMap: airlines,
-            airportsMap: airports
-        };
     }
 
     function processAPIData(airlines, airports) {
@@ -195,19 +147,11 @@
     }
 
     async function translateTicketCodes() {
-        let airlines, airports, processedData;
+        const airlines = await fetchFromAPI('https://airlabs.co/api/v9/airlines');
+        const airports = await fetchFromAPI('https://airlabs.co/api/v9/airports');
+        const processedData = processAPIData(airlines, airports);
 
         try {
-            if (dataSource === 'json') {
-                airlines = await fetchJSON('airlines.json');
-                airports = await fetchJSON('airports.json');
-                processedData = processJSONData(airlines, airports);
-            } else if (dataSource === 'api') {
-                airlines = await fetchFromAPI('https://airlabs.co/api/v9/airlines');
-                airports = await fetchFromAPI('https://airlabs.co/api/v9/airports');
-                processedData = processAPIData(airlines, airports);
-            }
-
             const { airlinesMap, airportsMap } = processedData;
 
             let codes = document.getElementById('ticketCodes').value.trim().split('\n');
@@ -272,11 +216,6 @@
             console.error('Něco se pokazilo při kopírování textu do schránky', err);
         });
     }
-
-    // Nastavit výchozí aktivní tlačítko při načtení
-    document.addEventListener("DOMContentLoaded", function() {
-        setDataSource('json');
-    });
 
 </script>
 
