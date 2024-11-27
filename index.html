@@ -101,6 +101,14 @@
         return await response.json();
     }
 
+    function normalizeCityName(city) {
+        return city
+            .replace(/\([^)]*\)/g, '') // Odebrat závorky a text v nich
+            .replace(/-.*$/, '') // Odebrat pomlčku a vše za ní
+            .replace(/,.*$/, '') // Odebrat čárku a vše za ní
+            .trim(); // Odstranit bílé znaky na začátku a na konci
+    }
+
     async function fetchFromAPI(apiEndpoint) {
         const apiKey = '523533ba-8629-4f60-af72-235362c4333f'; // Zde nahraďte vaším API klíčem
         const response = await fetch(`${apiEndpoint}?api_key=${apiKey}&lang=cs`);
@@ -116,9 +124,12 @@
         const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${apiKey}`);
         const data = await response.json();
 
+        console.log(data);
         // Ensure that the third object exists in the 'features' array
         if (Array.isArray(data.features) && data.features.length > 0) {
-            const city = data.features.find(feature => feature.id.startsWith("place")); // Get the third object in the 'features' array
+            const city = data.features.find(feature => feature.id.startsWith("place")) ||
+                data.features.find(feature => feature.id.startsWith("country")) ||
+                data.features.find(feature => feature.id.startsWith("region")); // Get the third object in the 'features' array
             return city.place_name ? city.place_name : 'Neznámé město';
         } else {
             throw new Error('Nebylo možné získat data pro město.');
@@ -144,6 +155,22 @@
             airlinesMap,
             airportsMap
         };
+    }
+
+    function findCityByIATACode(airports, iataCode) {
+        const airport = airports.find(airport => airport.iata_code === iataCode);
+        return airport ? normalizeCityName(airport.city) : null;
+    }
+
+    async function getCityByIata(iata) {
+        const airportsFilePath = 'airports.json'; // Cesta k JSON souboru
+        const airports = await fetchJSON(airportsFilePath);
+
+        if (airports) {
+            return findCityByIATACode(airports, iata);
+        } else {
+            console.error('Failed to load airports data.');
+        }
     }
 
     async function translateTicketCodes() {
@@ -174,6 +201,8 @@
                     origin = origin.slice(0, 3);
                 }
 
+                console.log(airportsMap[origin]);
+
                 const departureTime = codeParts[6].replace(/(\d{2})(\d{2})/, '$1:$2');
                 let arrivalTime = codeParts[7].replace(/#/g, '').replace(/(\d{2})(\d{2})/, '$1:$2');
 
@@ -184,18 +213,41 @@
 
                 let originAirportName = airportsMap[origin]?.name || origin;
                 let destinationAirportName = airportsMap[destination]?.name || destination;
-                console.log("test 4");
+
                 // Fetch city name from Mapbox if lat/lng are available for the airport
                 if (airportsMap[origin] && airportsMap[origin].lat && airportsMap[origin].lng) {
                     const lat = airportsMap[origin].lat;
                     const lng = airportsMap[origin].lng;
-                    originName = (await fetchCityNameFromMapbox(lat, lng)).split(',')[0];
+                    const iataDB = await getCityByIata(origin) || null;
+                    const mapbox = (await fetchCityNameFromMapbox(lat, lng)).split(',')[0];
+                    console.log(iataDB, mapbox);
+                    if(!iataDB) {
+                        originName = mapbox;
+                    } else {
+                        originName = mapbox === iataDB ? mapbox : iataDB;
+                    }
+                } else {
+                    const iataDB = await getCityByIata(origin) || null;
+                    if(iataDB) {
+                        originName = iataDB;
+                    }
                 }
 
                 if (airportsMap[destination] && airportsMap[destination].lat && airportsMap[destination].lng) {
                     const lat = airportsMap[destination].lat;
                     const lng = airportsMap[destination].lng;
-                    destinationName = (await fetchCityNameFromMapbox(lat, lng)).split(',')[0];
+                    const iataDB = await getCityByIata(destination) || null;
+                    const mapbox = (await fetchCityNameFromMapbox(lat, lng)).split(',')[0];
+                    if(!iataDB) {
+                        destinationName = mapbox;
+                    } else {
+                        destinationName = mapbox === iataDB ? mapbox : iataDB;
+                    }
+                } else {
+                    const iataDB = await getCityByIata(origin) || null;
+                    if(iataDB) {
+                        destinationName = iataDB;
+                    }
                 }
                 output += `${airlineName} ${airlineCode} ${flightNumber} - ${flightDate} ${originName} - ${destinationName} ${departureTime} - ${arrivalTime}\n\n`;
             }
