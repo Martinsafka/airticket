@@ -173,6 +173,29 @@
         }
     }
 
+    function formatDate(dateStr) {
+        const monthMap = {
+            JAN: "01",
+            FEB: "02",
+            MAR: "03",
+            APR: "04",
+            MAY: "05",
+            JUN: "06",
+            JUL: "07",
+            AUG: "08",
+            SEP: "09",
+            OCT: "10",
+            NOV: "11",
+            DEC: "12",
+        };
+
+        const day = dateStr.slice(0, 2); // První dva znaky jsou den
+        const monthAbbrev = dateStr.slice(2).toUpperCase(); // Zbytek je zkratka měsíce
+
+        const month = monthMap[monthAbbrev] || "??"; // Pokud není platný měsíc, vrátí ??
+        return `${day}.${month}.`;
+    }
+
     async function translateTicketCodes() {
         const airlines = await fetchFromAPI('https://airlabs.co/api/v9/airlines');
         const airports = await fetchFromAPI('https://airlabs.co/api/v9/airports');
@@ -184,7 +207,8 @@
             let codes = document.getElementById('ticketCodes').value.trim().split('\n');
             let output = "";
 
-            codes = codes.filter(code => code.trim() !== ''); // Remove empty lines
+            // Filtr prázdných řádků a řádků, které začínají na "OPERATED"
+            codes = codes.filter(code => code.trim() !== '' && !code.trim().toUpperCase().startsWith('OPERATED'));
 
             for (let code of codes) {
                 const cleanedCode = code.replace(/^[^A-Za-z]+/, '');
@@ -192,7 +216,7 @@
 
                 const airlineCode = codeParts[0];
                 const flightNumber = codeParts[1];
-                const flightDate = codeParts[3];
+                const flightDate = formatDate(codeParts[3]);
                 let origin = codeParts[4];
                 let destination = codeParts[5];
 
@@ -221,14 +245,14 @@
                     const iataDB = await getCityByIata(origin) || null;
                     const mapbox = (await fetchCityNameFromMapbox(lat, lng)).split(',')[0];
                     console.log(iataDB, mapbox);
-                    if(!iataDB) {
+                    if (!iataDB) {
                         originName = mapbox;
                     } else {
                         originName = mapbox === iataDB ? mapbox : iataDB;
                     }
                 } else {
                     const iataDB = await getCityByIata(origin) || null;
-                    if(iataDB) {
+                    if (iataDB) {
                         originName = iataDB;
                     }
                 }
@@ -238,18 +262,19 @@
                     const lng = airportsMap[destination].lng;
                     const iataDB = await getCityByIata(destination) || null;
                     const mapbox = (await fetchCityNameFromMapbox(lat, lng)).split(',')[0];
-                    if(!iataDB) {
+                    if (!iataDB) {
                         destinationName = mapbox;
                     } else {
                         destinationName = mapbox === iataDB ? mapbox : iataDB;
                     }
                 } else {
-                    const iataDB = await getCityByIata(origin) || null;
-                    if(iataDB) {
+                    const iataDB = await getCityByIata(destination) || null;
+                    if (iataDB) {
                         destinationName = iataDB;
                     }
                 }
-                output += `${airlineName} ${airlineCode} ${flightNumber} - ${flightDate} ${originName} - ${destinationName} ${departureTime} - ${arrivalTime}\n\n`;
+
+                output += `${flightDate} ${originName} - ${destinationName} ${departureTime} - ${arrivalTime} ${airlineName} ${airlineCode} ${flightNumber} \n\n`;
             }
 
             document.getElementById('output').innerText = output;
