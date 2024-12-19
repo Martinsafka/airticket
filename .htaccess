@@ -1,0 +1,4 @@
+AuthType Basic
+AuthName "Protected Area"
+AuthUserFile /www/ideaguards.com/.htpasswd
+Require valid-user
